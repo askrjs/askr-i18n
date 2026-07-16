@@ -6,7 +6,7 @@ choose locales, parse ICU messages, or install process-global state.
 ```tsx
 import { createI18n } from '@askrjs/i18n';
 
-const i18n = createI18n({
+const i18n = createI18n('en', {
   en: {
     welcome: ({ name }: { name: string }) => `Welcome, ${name}`,
     total: (value: number) =>
@@ -32,5 +32,9 @@ Applications own locale resolution from URL prefixes, hosts, cookies, or user
 profiles. `i18n.dehydrate()` returns an immutable, versioned snapshot containing
 the active locale, direction, and selected catalog identity. Pass that snapshot
 back as `<i18n.Scope hydration={snapshot}>` during hydration.
+
+The first argument names the source locale. Its exact keys and message argument
+tuples are required from every other locale; missing, extra, or incompatible
+messages fail during type checking and are also rejected at runtime.
 
 See [the runtime contract](docs/runtime.md) for isolation and hydration details.

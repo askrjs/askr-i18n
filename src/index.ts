@@ -23,6 +23,30 @@ type MessageAt<
 type MessageArgs<Message> = Message extends (...args: infer Args) => string
   ? Args
   : never;
+type SameTuple<Left extends readonly unknown[], Right extends readonly unknown[]> =
+  (<Value>() => Value extends Left ? 1 : 2) extends
+    (<Value>() => Value extends Right ? 1 : 2)
+    ? (<Value>() => Value extends Right ? 1 : 2) extends
+        (<Value>() => Value extends Left ? 1 : 2)
+      ? true
+      : false
+    : false;
+type ValidCatalog<Source extends Catalog, Candidate extends Catalog> =
+  Candidate & {
+    [Key in keyof Candidate]: Key extends keyof Source
+      ? SameTuple<MessageArgs<Candidate[Key]>, MessageArgs<Source[Key]>> extends true
+        ? Candidate[Key]
+        : never
+      : never;
+  } & {
+    [Key in Exclude<keyof Source, keyof Candidate>]: never;
+  };
+type ValidCatalogs<
+  Catalogs extends Record<string, Catalog>,
+  SourceLocale extends keyof Catalogs,
+> = {
+  [Locale in keyof Catalogs]: ValidCatalog<Catalogs[SourceLocale], Catalogs[Locale]>;
+};
 
 export type I18nHydration<Locale extends string = string> = Readonly<{
   version: 1;
@@ -80,15 +104,48 @@ export interface I18n<Catalogs extends Record<string, Catalog>> {
  * Catalog values are ordinary typed TypeScript functions. Locale selection is
  * intentionally left to the application and installed lexically through Scope.
  */
-export function createI18n<const Catalogs extends Record<string, Catalog>>(
-  catalogs: Catalogs,
+export function createI18n<
+  const SourceLocale extends string,
+  const Catalogs extends Record<SourceLocale, Catalog>,
+>(
+  sourceLocale: SourceLocale,
+  catalogs: Catalogs & ValidCatalogs<Catalogs, SourceLocale>,
 ): I18n<Catalogs> {
   const locales = Object.keys(catalogs) as LocaleOf<Catalogs>[];
   if (locales.length === 0) {
     throw new Error('createI18n requires at least one catalog.');
   }
 
-  const ownedCatalogs = Object.freeze({ ...catalogs }) as Readonly<Catalogs>;
+  if (!Object.prototype.hasOwnProperty.call(catalogs, sourceLocale)) {
+    throw new Error(`Unknown source locale: ${sourceLocale}.`);
+  }
+  const sourceCatalog = catalogs[sourceLocale];
+  const sourceKeys = Object.keys(sourceCatalog).sort();
+  const ownedEntries = locales.map((locale) => {
+    const catalog = catalogs[locale];
+    if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) {
+      throw new Error(`Invalid i18n catalog: ${locale}.`);
+    }
+    const keys = Object.keys(catalog).sort();
+    const missing = sourceKeys.filter((key) => !Object.prototype.hasOwnProperty.call(catalog, key));
+    const extra = keys.filter((key) => !Object.prototype.hasOwnProperty.call(sourceCatalog, key));
+    if (missing.length || extra.length) {
+      throw new Error(
+        `Invalid i18n catalog ${locale}:` +
+          `${missing.length ? ` missing ${missing.join(', ')}` : ''}` +
+          `${extra.length ? ` extra ${extra.join(', ')}` : ''}.`,
+      );
+    }
+    for (const key of sourceKeys) {
+      const sourceMessage = sourceCatalog[key];
+      const message = catalog[key];
+      if (typeof message !== 'function' || message.length !== sourceMessage.length) {
+        throw new Error(`Invalid i18n message signature: ${locale}.${key}.`);
+      }
+    }
+    return [locale, Object.freeze({ ...catalog })] as const;
+  });
+  const ownedCatalogs = Object.freeze(Object.fromEntries(ownedEntries)) as unknown as Readonly<Catalogs>;
   const scopeState = defineScope<ScopeState<LocaleOf<Catalogs>> | null>(null);
 
   const assertLocale = (locale: string): LocaleOf<Catalogs> => {

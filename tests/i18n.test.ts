@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStringSync } from '@askrjs/askr/ssr';
 import { createI18n, type I18nHydration } from '../src/index';
 
-const messages = createI18n({
+const messages = createI18n('en', {
   en: {
     greeting: ({ name }: { name: string }) => `Hello, ${name}`,
     total: (value: number) => new Intl.NumberFormat('en-US').format(value),
@@ -27,7 +27,7 @@ describe('createI18n', () => {
   });
 
   it('should isolate locale ownership between service instances', async () => {
-    const alternate = createI18n({
+    const alternate = createI18n('en', {
       en: { label: () => 'alternate' },
       ar: { label: () => 'بديل' },
     });
@@ -91,5 +91,23 @@ describe('createI18n', () => {
         hydration: { version: 1, locale: 'en', dir: 'ltr', catalog: 'ar' },
       }),
     ).toThrow('catalog must match');
+  });
+
+  it('should reject invalid catalogs for untyped callers and own frozen copies', () => {
+    expect(() => createI18n('en', {
+      en: { greeting: (name: string) => name },
+      fr: {} as { greeting: (name: string) => string },
+    })).toThrow('missing greeting');
+    expect(() => createI18n('en', {
+      en: { greeting: (name: string) => name },
+      fr: { greeting: () => 'bonjour' } as { greeting: (name: string) => string },
+    })).toThrow('Invalid i18n message signature');
+
+    const source = { label: () => 'owned' };
+    const owned = createI18n('en', { en: source });
+    source.label = () => 'mutated';
+    expect(owned.format('en', 'label')).toBe('owned');
+    expect(Object.isFrozen(owned.catalogs)).toBe(true);
+    expect(Object.isFrozen(owned.catalogs.en)).toBe(true);
   });
 });
