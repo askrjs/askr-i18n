@@ -4,23 +4,23 @@ Typed, application-owned internationalization for Askr. The package does not
 choose locales, parse ICU messages, or install process-global state.
 
 ```tsx
-import { createI18n } from '@askrjs/i18n';
+import { createI18n } from "@askrjs/i18n";
 
-const i18n = createI18n('en', {
+const i18n = createI18n("en", {
   en: {
     welcome: ({ name }: { name: string }) => `Welcome, ${name}`,
     total: (value: number) =>
-      new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value),
+      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value),
   },
   fr: {
     welcome: ({ name }: { name: string }) => `Bienvenue, ${name}`,
     total: (value: number) =>
-      new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value),
+      new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value),
   },
 });
 
 function Welcome() {
-  return <h1>{i18n.text('welcome', { name: 'Ada' })}</h1>;
+  return <h1>{i18n.text("welcome", { name: "Ada" })}</h1>;
 }
 
 <i18n.Scope locale="fr" dir="ltr">

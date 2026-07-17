@@ -18,7 +18,7 @@ The hydration snapshot has this stable shape:
 type I18nHydration<Locale extends string> = Readonly<{
   version: 1;
   locale: Locale;
-  dir: 'ltr' | 'rtl';
+  dir: "ltr" | "rtl";
   catalog: Locale;
 }>;
 ```

@@ -1,10 +1,8 @@
-import { defineScope, readScope } from '@askrjs/askr';
-import type { JSXElement } from '@askrjs/askr/foundations/structures';
+import { defineScope, readScope } from "@askrjs/askr";
+import type { JSXElement } from "@askrjs/askr/foundations/structures";
 
-export type TextDirection = 'ltr' | 'rtl';
-export type CatalogMessage<Args extends readonly unknown[] = never[]> = (
-  ...args: Args
-) => string;
+export type TextDirection = "ltr" | "rtl";
+export type CatalogMessage<Args extends readonly unknown[] = never[]> = (...args: Args) => string;
 export type Catalog = Readonly<Record<string, CatalogMessage>>;
 
 type LocaleOf<Catalogs extends Record<string, Catalog>> = keyof Catalogs & string;
@@ -12,35 +10,25 @@ type CatalogKey<Catalogs extends Record<string, Catalog>> = {
   [Locale in keyof Catalogs]: keyof Catalogs[Locale];
 }[keyof Catalogs] &
   string;
-type MessageAt<
-  Catalogs extends Record<string, Catalog>,
-  Key extends PropertyKey,
-> = {
-  [Locale in keyof Catalogs]: Key extends keyof Catalogs[Locale]
-    ? Catalogs[Locale][Key]
-    : never;
+type MessageAt<Catalogs extends Record<string, Catalog>, Key extends PropertyKey> = {
+  [Locale in keyof Catalogs]: Key extends keyof Catalogs[Locale] ? Catalogs[Locale][Key] : never;
 }[keyof Catalogs];
-type MessageArgs<Message> = Message extends (...args: infer Args) => string
-  ? Args
-  : never;
+type MessageArgs<Message> = Message extends (...args: infer Args) => string ? Args : never;
 type SameTuple<Left extends readonly unknown[], Right extends readonly unknown[]> =
-  (<Value>() => Value extends Left ? 1 : 2) extends
-    (<Value>() => Value extends Right ? 1 : 2)
-    ? (<Value>() => Value extends Right ? 1 : 2) extends
-        (<Value>() => Value extends Left ? 1 : 2)
+  (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2
+    ? (<Value>() => Value extends Right ? 1 : 2) extends <Value>() => Value extends Left ? 1 : 2
       ? true
       : false
     : false;
-type ValidCatalog<Source extends Catalog, Candidate extends Catalog> =
-  Candidate & {
-    [Key in keyof Candidate]: Key extends keyof Source
-      ? SameTuple<MessageArgs<Candidate[Key]>, MessageArgs<Source[Key]>> extends true
-        ? Candidate[Key]
-        : never
-      : never;
-  } & {
-    [Key in Exclude<keyof Source, keyof Candidate>]: never;
-  };
+type ValidCatalog<Source extends Catalog, Candidate extends Catalog> = Candidate & {
+  [Key in keyof Candidate]: Key extends keyof Source
+    ? SameTuple<MessageArgs<Candidate[Key]>, MessageArgs<Source[Key]>> extends true
+      ? Candidate[Key]
+      : never
+    : never;
+} & {
+  [Key in Exclude<keyof Source, keyof Candidate>]: never;
+};
 type ValidCatalogs<
   Catalogs extends Record<string, Catalog>,
   SourceLocale extends keyof Catalogs,
@@ -77,17 +65,12 @@ type ScopeState<Locale extends string> = {
 
 export interface I18n<Catalogs extends Record<string, Catalog>> {
   readonly catalogs: Readonly<Catalogs>;
-  readonly Scope: (
-    props: I18nScopeProps<LocaleOf<Catalogs>>,
-  ) => JSXElement;
+  readonly Scope: (props: I18nScopeProps<LocaleOf<Catalogs>>) => JSXElement;
   text<Key extends CatalogKey<Catalogs>>(
     key: Key,
     ...args: MessageArgs<MessageAt<Catalogs, Key>>
   ): string;
-  format<
-    Locale extends LocaleOf<Catalogs>,
-    Key extends keyof Catalogs[Locale] & string,
-  >(
+  format<Locale extends LocaleOf<Catalogs>, Key extends keyof Catalogs[Locale] & string>(
     locale: Locale,
     key: Key,
     ...args: MessageArgs<Catalogs[Locale][Key]>
@@ -113,7 +96,7 @@ export function createI18n<
 ): I18n<Catalogs> {
   const locales = Object.keys(catalogs) as LocaleOf<Catalogs>[];
   if (locales.length === 0) {
-    throw new Error('createI18n requires at least one catalog.');
+    throw new Error("createI18n requires at least one catalog.");
   }
 
   if (!Object.prototype.hasOwnProperty.call(catalogs, sourceLocale)) {
@@ -123,7 +106,7 @@ export function createI18n<
   const sourceKeys = Object.keys(sourceCatalog).sort();
   const ownedEntries = locales.map((locale) => {
     const catalog = catalogs[locale];
-    if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) {
+    if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
       throw new Error(`Invalid i18n catalog: ${locale}.`);
     }
     const keys = Object.keys(catalog).sort();
@@ -132,20 +115,22 @@ export function createI18n<
     if (missing.length || extra.length) {
       throw new Error(
         `Invalid i18n catalog ${locale}:` +
-          `${missing.length ? ` missing ${missing.join(', ')}` : ''}` +
-          `${extra.length ? ` extra ${extra.join(', ')}` : ''}.`,
+          `${missing.length ? ` missing ${missing.join(", ")}` : ""}` +
+          `${extra.length ? ` extra ${extra.join(", ")}` : ""}.`,
       );
     }
     for (const key of sourceKeys) {
       const sourceMessage = sourceCatalog[key];
       const message = catalog[key];
-      if (typeof message !== 'function' || message.length !== sourceMessage.length) {
+      if (typeof message !== "function" || message.length !== sourceMessage.length) {
         throw new Error(`Invalid i18n message signature: ${locale}.${key}.`);
       }
     }
     return [locale, Object.freeze({ ...catalog })] as const;
   });
-  const ownedCatalogs = Object.freeze(Object.fromEntries(ownedEntries)) as unknown as Readonly<Catalogs>;
+  const ownedCatalogs = Object.freeze(
+    Object.fromEntries(ownedEntries),
+  ) as unknown as Readonly<Catalogs>;
   const scopeState = defineScope<ScopeState<LocaleOf<Catalogs>> | null>(null);
 
   const assertLocale = (locale: string): LocaleOf<Catalogs> => {
@@ -158,22 +143,19 @@ export function createI18n<
   const active = (): ScopeState<LocaleOf<Catalogs>> => {
     const value = readScope(scopeState);
     if (!value) {
-      throw new Error('i18n.text() must be called within this service\'s <i18n.Scope>.');
+      throw new Error("i18n.text() must be called within this service's <i18n.Scope>.");
     }
     return value;
   };
 
-  const format = <
-    Locale extends LocaleOf<Catalogs>,
-    Key extends keyof Catalogs[Locale] & string,
-  >(
+  const format = <Locale extends LocaleOf<Catalogs>, Key extends keyof Catalogs[Locale] & string>(
     locale: Locale,
     key: Key,
     ...args: MessageArgs<Catalogs[Locale][Key]>
   ): string => {
     const selectedLocale = assertLocale(locale);
     const message = ownedCatalogs[selectedLocale][key];
-    if (typeof message !== 'function') {
+    if (typeof message !== "function") {
       throw new Error(`Missing i18n message: ${selectedLocale}.${key}.`);
     }
     return (message as unknown as (...values: unknown[]) => string)(...args);
@@ -187,20 +169,20 @@ export function createI18n<
 
     const requestedLocale = hydrated?.locale ?? props.locale;
     if (requestedLocale === undefined) {
-      throw new Error('i18n.Scope requires a locale or hydration snapshot.');
+      throw new Error("i18n.Scope requires a locale or hydration snapshot.");
     }
     const locale = assertLocale(requestedLocale);
     if (hydrated && hydrated.catalog !== locale) {
-      throw new Error('The hydrated i18n catalog must match its locale.');
+      throw new Error("The hydrated i18n catalog must match its locale.");
     }
 
     const value = Object.freeze({
       locale,
-      dir: hydrated?.dir ?? props.dir ?? 'ltr',
+      dir: hydrated?.dir ?? props.dir ?? "ltr",
       catalog: locale,
     });
 
-    const children = props.children as Parameters<typeof scopeState>[0]['children'];
+    const children = props.children as Parameters<typeof scopeState>[0]["children"];
     return scopeState({ value, children }) as JSXElement;
   };
 
@@ -213,7 +195,7 @@ export function createI18n<
     ): string {
       const selected = active();
       const message = ownedCatalogs[selected.locale][key];
-      if (typeof message !== 'function') {
+      if (typeof message !== "function") {
         throw new Error(`Missing i18n message: ${selected.locale}.${key}.`);
       }
       return (message as unknown as (...values: unknown[]) => string)(...args);
