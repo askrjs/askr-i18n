@@ -54,10 +54,10 @@
     "prepublishOnly": "npm run check"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.0.53 <0.1.0"
+    "@askrjs/askr": ">=0.0.52 <0.1.0"
   },
   "devDependencies": {
-    "@askrjs/askr": "file:../askr",
+    "@askrjs/askr": ">=0.0.52 <0.1.0",
     "@types/node": "^26.1.1",
     "publint": "^0.3.21",
     "typescript": "^6.0.3",
