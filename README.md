@@ -1,5 +1,8 @@
 # @askrjs/i18n
 
+[![CI](https://github.com/askrjs/askr-i18n/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/askrjs/askr-i18n/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/%40askrjs%2Fi18n.svg)](https://www.npmjs.com/package/@askrjs/i18n)
+
 Typed, application-owned internationalization for Askr. The package does not
 choose locales, parse ICU messages, or install process-global state.
 
