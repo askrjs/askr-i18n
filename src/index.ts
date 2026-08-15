@@ -1,8 +1,11 @@
 import { defineScope, readScope } from "@askrjs/askr";
 import type { JSXElement } from "@askrjs/askr/foundations/structures";
 
+/** Text direction used by a locale. */
 export type TextDirection = "ltr" | "rtl";
+/** Typed message function in a locale catalog. */
 export type CatalogMessage<Args extends readonly unknown[] = never[]> = (...args: Args) => string;
+/** Read-only map of message keys to typed message functions. */
 export type Catalog = Readonly<Record<string, CatalogMessage>>;
 
 type LocaleOf<Catalogs extends Record<string, Catalog>> = keyof Catalogs & string;
@@ -36,13 +39,19 @@ type ValidCatalogs<
   [Locale in keyof Catalogs]: ValidCatalog<Catalogs[SourceLocale], Catalogs[Locale]>;
 };
 
+/** Serializable locale state for SSR hydration. */
 export type I18nHydration<Locale extends string = string> = Readonly<{
+  /** Snapshot schema version. */
   version: 1;
+  /** Active locale. */
   locale: Locale;
+  /** Text direction for the locale. */
   dir: TextDirection;
+  /** Catalog selected for the locale. */
   catalog: Locale;
 }>;
 
+/** Props for installing locale state through the Scope component. */
 export type I18nScopeProps<Locale extends string> =
   | {
       locale: Locale;
@@ -63,21 +72,30 @@ type ScopeState<Locale extends string> = {
   catalog: Locale;
 };
 
+/** Typed internationalization service backed by aligned locale catalogs. */
 export interface I18n<Catalogs extends Record<string, Catalog>> {
+  /** Frozen catalogs supplied at creation time. */
   readonly catalogs: Readonly<Catalogs>;
+  /** JSX scope component that installs the active locale. */
   readonly Scope: (props: I18nScopeProps<LocaleOf<Catalogs>>) => JSXElement;
+  /** Format a message in the active locale. */
   text<Key extends CatalogKey<Catalogs>>(
     key: Key,
     ...args: MessageArgs<MessageAt<Catalogs, Key>>
   ): string;
+  /** Format a message in an explicitly selected locale. */
   format<Locale extends LocaleOf<Catalogs>, Key extends keyof Catalogs[Locale] & string>(
     locale: Locale,
     key: Key,
     ...args: MessageArgs<Catalogs[Locale][Key]>
   ): string;
+  /** Read the active locale. */
   locale(): LocaleOf<Catalogs>;
+  /** Read the active locale's text direction. */
   direction(): TextDirection;
+  /** Read the active catalog identifier. */
   catalog(): LocaleOf<Catalogs>;
+  /** Serialize the active locale state for hydration. */
   dehydrate(): I18nHydration<LocaleOf<Catalogs>>;
 }
 
@@ -86,6 +104,9 @@ export interface I18n<Catalogs extends Record<string, Catalog>> {
  *
  * Catalog values are ordinary typed TypeScript functions. Locale selection is
  * intentionally left to the application and installed lexically through Scope.
+ * @param sourceLocale Locale whose message keys and argument tuples define the contract.
+ * @param catalogs Complete, argument-compatible catalogs for every locale.
+ * @returns A typed internationalization service.
  */
 export function createI18n<
   const SourceLocale extends string,
@@ -215,3 +236,8 @@ export function createI18n<
     },
   });
 }
+/** Format a message in an explicitly selected locale. */
+/** Read the active locale. */
+/** Read the active locale's text direction. */
+/** Read the active catalog identifier. */
+/** Serialize the active locale state for hydration. */
