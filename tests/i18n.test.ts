@@ -100,6 +100,22 @@ describe("createI18n", () => {
     ).toThrow("catalog must match");
   });
 
+  it.each([
+    {
+      hydration: { version: 1, locale: "en", dir: "sideways", catalog: "en" },
+    },
+    { locale: "en", dir: "sideways" },
+  ])("should reject invalid runtime text direction input", (props) => {
+    expect(() =>
+      renderToStringSync(() =>
+        messages.Scope({
+          ...props,
+          children: () => messages.direction(),
+        } as never),
+      ),
+    ).toThrow("Invalid i18n text direction: sideways");
+  });
+
   it("should reject invalid catalogs for untyped callers and own frozen copies", () => {
     expect(() =>
       createI18n("en", {
