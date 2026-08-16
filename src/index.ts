@@ -161,6 +161,13 @@ export function createI18n<
     return locale as LocaleOf<Catalogs>;
   };
 
+  const assertDirection = (direction: unknown): TextDirection => {
+    if (direction !== "ltr" && direction !== "rtl") {
+      throw new Error(`Invalid i18n text direction: ${String(direction)}.`);
+    }
+    return direction;
+  };
+
   const active = (): ScopeState<LocaleOf<Catalogs>> => {
     const value = readScope(scopeState);
     if (!value) {
@@ -199,7 +206,7 @@ export function createI18n<
 
     const value = Object.freeze({
       locale,
-      dir: hydrated?.dir ?? props.dir ?? "ltr",
+      dir: assertDirection(hydrated?.dir ?? props.dir ?? "ltr"),
       catalog: locale,
     });
 
