@@ -26,10 +26,58 @@ function Welcome() {
   return <h1>{i18n.text("welcome", { name: "Ada" })}</h1>;
 }
 
-<i18n.Scope locale="fr" dir="ltr">
-  <Welcome />
+function LocalizedMain() {
+  return (
+    <main {...i18n.attributes()}>
+      <Welcome />
+    </main>
+  );
+}
+
+<i18n.Scope locale="fr">
+  <LocalizedMain />
 </i18n.Scope>;
 ```
+
+## Language and direction
+
+Locale state and HTML direction must change together. For the initial server
+render, apply the same frozen attributes to the document element:
+
+```tsx
+import { applyLocaleAttributes, localeAttributes } from "@askrjs/i18n";
+
+const attributes = localeAttributes(locale);
+// Server template: <html lang={attributes.lang} dir={attributes.dir}>
+
+// Client boot and later locale switches use the same resolved attributes.
+applyLocaleAttributes(document.documentElement, attributes);
+```
+
+`localeAttributes()` uses `Intl.Locale#getTextInfo()` where available and a
+deterministic compatibility fallback. Pass an explicit second argument when an
+application uses a non-default script policy that needs an override:
+
+```ts
+const attributes = localeAttributes("az-Arab", "rtl");
+```
+
+`i18n.attributes()` reads the active lexical scope. Spread it onto a real DOM
+element when a nested subtree uses a different language or direction. The
+package does not insert a wrapper or mutate the global document implicitly.
+
+For user-provided text whose direction is unknown, use semantic HTML isolation:
+
+```tsx
+<p>
+  Account: <bdi>{userDisplayName}</bdi>
+</p>
+<input dir="auto" name="displayName" />
+```
+
+Use CSS logical properties (`margin-inline-start`, `padding-inline`,
+`inset-inline-end`, `text-align: start`) for direction-sensitive layout rather
+than mirrored left/right rules.
 
 Applications own locale resolution from URL prefixes, hosts, cookies, or user
 profiles. `i18n.dehydrate()` returns an immutable, versioned snapshot containing
