@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { renderToStringSync } from "@askrjs/askr/ssr";
-import { createI18n, type I18nHydration } from "../src/index";
+import {
+  applyLocaleAttributes,
+  createI18n,
+  localeAttributes,
+  resolveTextDirection,
+  type I18nHydration,
+} from "../src/index";
 
 const messages = createI18n("en", {
   en: {
@@ -14,6 +20,61 @@ const messages = createI18n("en", {
 });
 
 describe("createI18n", () => {
+  it("should resolve modern locale directions with explicit deterministic overrides", () => {
+    expect(resolveTextDirection("en-US")).toBe("ltr");
+    expect(resolveTextDirection("ar")).toBe("rtl");
+    expect(resolveTextDirection("fa-Arab-IR")).toBe("rtl");
+    expect(resolveTextDirection("en-US", "rtl")).toBe("rtl");
+    expect(resolveTextDirection("application-locale-key")).toBe("ltr");
+    expect(() => resolveTextDirection("en-US", "sideways" as never)).toThrow(
+      "Invalid i18n text direction: sideways",
+    );
+  });
+
+  it("should resolve direction from likely scripts when getTextInfo is unavailable", () => {
+    const prototype = Intl.Locale.prototype as Intl.Locale & {
+      getTextInfo?: () => { direction: "ltr" | "rtl" };
+      textInfo?: { direction: "ltr" | "rtl" };
+    };
+    const getTextInfo = Object.getOwnPropertyDescriptor(prototype, "getTextInfo");
+    const textInfo = Object.getOwnPropertyDescriptor(prototype, "textInfo");
+    try {
+      Object.defineProperty(prototype, "getTextInfo", { value: undefined, configurable: true });
+      Object.defineProperty(prototype, "textInfo", { value: undefined, configurable: true });
+      expect(resolveTextDirection("az-Arab")).toBe("rtl");
+      expect(resolveTextDirection("pa-Guru")).toBe("ltr");
+    } finally {
+      if (getTextInfo) Object.defineProperty(prototype, "getTextInfo", getTextInfo);
+      else delete prototype.getTextInfo;
+      if (textInfo) Object.defineProperty(prototype, "textInfo", textInfo);
+      else delete prototype.textInfo;
+    }
+  });
+
+  it("should build frozen semantic attributes and apply them to an explicit target", () => {
+    const attributes = localeAttributes("he-IL");
+    const applied = new Map<string, string>();
+    const target = { setAttribute: (name: string, value: string) => applied.set(name, value) };
+    applyLocaleAttributes(target, attributes);
+    expect(attributes).toEqual({ lang: "he-IL", dir: "rtl" });
+    expect(Object.isFrozen(attributes)).toBe(true);
+    expect(applied.get("lang")).toBe("he-IL");
+    expect(applied.get("dir")).toBe("rtl");
+    expect(() =>
+      applyLocaleAttributes(target, { lang: "invalid", dir: "sideways" as never }),
+    ).toThrow("Invalid i18n text direction: sideways");
+    expect(applied.get("lang")).toBe("he-IL");
+  });
+
+  it("should expose semantic attributes from the active lexical scope", () => {
+    const html = renderToStringSync(() =>
+      messages.Scope({
+        locale: "ar",
+        children: () => JSON.stringify(messages.attributes()),
+      }),
+    );
+    expect(html).toBe('{"lang":"ar","dir":"rtl"}');
+  });
   it("should render typed catalog messages from the active lexical scope", () => {
     const html = renderToStringSync(() =>
       messages.Scope({

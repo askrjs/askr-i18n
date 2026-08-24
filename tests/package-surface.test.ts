@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import * as api from "../src/index";
 
 describe("package surface", () => {
-  it("should expose only the application-owned service factory at runtime", () => {
-    expect(Object.keys(api).sort()).toEqual(["createI18n"]);
+  it("should expose only the application-owned service and semantic locale helpers", () => {
+    expect(Object.keys(api).sort()).toEqual([
+      "applyLocaleAttributes",
+      "createI18n",
+      "localeAttributes",
+      "resolveTextDirection",
+    ]);
   });
 
   it("should publish the built root and package metadata only", () => {

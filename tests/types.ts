@@ -1,9 +1,14 @@
 import {
+  applyLocaleAttributes,
   createI18n,
+  localeAttributes,
+  resolveTextDirection,
   type Catalog,
   type CatalogMessage,
   type I18n,
   type I18nHydration,
+  type LocaleAttributeTarget,
+  type LocaleAttributes,
   type I18nScopeProps,
   type TextDirection,
 } from "../src/index";
@@ -33,7 +38,11 @@ const hydration: I18nHydration<"en" | "fr"> = {
   catalog: "fr",
 };
 const scopeProps: I18nScopeProps<"en" | "fr"> = { hydration };
-void [catalog, service, scopeProps];
+const attributes: LocaleAttributes<"fr"> = localeAttributes("fr");
+const attributeTarget: LocaleAttributeTarget = { setAttribute: () => undefined };
+applyLocaleAttributes(attributeTarget, attributes);
+resolveTextDirection("fr", "ltr");
+void [catalog, service, scopeProps, i18n.attributes()];
 
 createI18n("en", {
   en: { greeting: (name: string) => name },

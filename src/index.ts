@@ -3,6 +3,15 @@ import type { JSXElement } from "@askrjs/askr/foundations/structures";
 
 /** Text direction used by a locale. */
 export type TextDirection = "ltr" | "rtl";
+/** Semantic HTML locale attributes for a document or nested language boundary. */
+export type LocaleAttributes<Locale extends string = string> = Readonly<{
+  lang: Locale;
+  dir: TextDirection;
+}>;
+/** Minimal target contract accepted by {@link applyLocaleAttributes}. */
+export type LocaleAttributeTarget = {
+  setAttribute(name: "lang" | "dir", value: string): void;
+};
 /** Typed message function in a locale catalog. */
 export type CatalogMessage<Args extends readonly unknown[] = never[]> = (...args: Args) => string;
 /** Read-only map of message keys to typed message functions. */
@@ -95,8 +104,83 @@ export interface I18n<Catalogs extends Record<string, Catalog>> {
   direction(): TextDirection;
   /** Read the active catalog identifier. */
   catalog(): LocaleOf<Catalogs>;
+  /** Read semantic HTML attributes for the active locale boundary. */
+  attributes(): LocaleAttributes<LocaleOf<Catalogs>>;
   /** Serialize the active locale state for hydration. */
   dehydrate(): I18nHydration<LocaleOf<Catalogs>>;
+}
+
+const FALLBACK_RTL_LANGUAGES = new Set([
+  "ar",
+  "ckb",
+  "dv",
+  "fa",
+  "he",
+  "ks",
+  "lrc",
+  "mzn",
+  "nqo",
+  "ps",
+  "sd",
+  "ug",
+  "ur",
+  "yi",
+]);
+const FALLBACK_RTL_SCRIPTS = new Set([
+  "Adlm",
+  "Arab",
+  "Hebr",
+  "Mand",
+  "Nkoo",
+  "Rohg",
+  "Samr",
+  "Syrc",
+  "Thaa",
+]);
+
+function assertTextDirection(direction: unknown): TextDirection {
+  if (direction !== "ltr" && direction !== "rtl") {
+    throw new Error(`Invalid i18n text direction: ${String(direction)}.`);
+  }
+  return direction;
+}
+
+/** Resolve a locale's default text direction, allowing an explicit application override. */
+export function resolveTextDirection(locale: string, override?: TextDirection): TextDirection {
+  if (override !== undefined) return assertTextDirection(override);
+  try {
+    const resolved = new Intl.Locale(locale) as Intl.Locale & {
+      getTextInfo?: () => { direction: TextDirection };
+      textInfo?: { direction: TextDirection };
+    };
+    const direction = resolved.getTextInfo?.().direction ?? resolved.textInfo?.direction;
+    if (direction === "ltr" || direction === "rtl") return direction;
+    const likely = resolved.maximize();
+    const language = likely.language.toLowerCase();
+    return FALLBACK_RTL_SCRIPTS.has(likely.script ?? "") || FALLBACK_RTL_LANGUAGES.has(language)
+      ? "rtl"
+      : "ltr";
+  } catch {
+    return "ltr";
+  }
+}
+
+/** Build semantic HTML attributes for a document or nested locale boundary. */
+export function localeAttributes<const Locale extends string>(
+  locale: Locale,
+  direction?: TextDirection,
+): LocaleAttributes<Locale> {
+  return Object.freeze({ lang: locale, dir: resolveTextDirection(locale, direction) });
+}
+
+/** Apply locale attributes to an explicit DOM target such as `document.documentElement`. */
+export function applyLocaleAttributes(
+  target: LocaleAttributeTarget,
+  attributes: LocaleAttributes,
+): void {
+  const direction = assertTextDirection(attributes.dir);
+  target.setAttribute("lang", attributes.lang);
+  target.setAttribute("dir", direction);
 }
 
 /**
@@ -161,13 +245,6 @@ export function createI18n<
     return locale as LocaleOf<Catalogs>;
   };
 
-  const assertDirection = (direction: unknown): TextDirection => {
-    if (direction !== "ltr" && direction !== "rtl") {
-      throw new Error(`Invalid i18n text direction: ${String(direction)}.`);
-    }
-    return direction;
-  };
-
   const active = (): ScopeState<LocaleOf<Catalogs>> => {
     const value = readScope(scopeState);
     if (!value) {
@@ -204,14 +281,10 @@ export function createI18n<
       throw new Error("The hydrated i18n catalog must match its locale.");
     }
 
-    const requestedDirection = hydrated
-      ? hydrated.dir
-      : props.dir === undefined
-        ? "ltr"
-        : props.dir;
+    const requestedDirection = hydrated ? hydrated.dir : resolveTextDirection(locale, props.dir);
     const value = Object.freeze({
       locale,
-      dir: assertDirection(requestedDirection),
+      dir: assertTextDirection(requestedDirection),
       catalog: locale,
     });
 
@@ -237,6 +310,10 @@ export function createI18n<
     locale: () => active().locale,
     direction: () => active().dir,
     catalog: () => active().catalog,
+    attributes: () => {
+      const value = active();
+      return localeAttributes(value.locale, value.dir);
+    },
     dehydrate: () => {
       const value = active();
       return Object.freeze({
