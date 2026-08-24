@@ -116,6 +116,85 @@ describe("createI18n", () => {
     ).toThrow("Invalid i18n text direction: sideways");
   });
 
+  it.each(["", "auto", "RTL", "left-to-right", null, 0])(
+    "should reject additional initial and hydrated direction value %j",
+    (dir) => {
+      expect(() =>
+        renderToStringSync(() =>
+          messages.Scope({ locale: "en", dir, children: () => messages.direction() } as never),
+        ),
+      ).toThrow("Invalid i18n text direction");
+      expect(() =>
+        renderToStringSync(() =>
+          messages.Scope({
+            hydration: { version: 1, locale: "en", catalog: "en", dir },
+            children: () => messages.direction(),
+          } as never),
+        ),
+      ).toThrow("Invalid i18n text direction");
+    },
+  );
+
+  it("should switch locales after hydration without retaining direction state", () => {
+    const hydrated = renderToStringSync(() =>
+      messages.Scope({
+        hydration: { version: 1, locale: "ar", catalog: "ar", dir: "rtl" },
+        children: () => `${messages.locale()}:${messages.direction()}`,
+      }),
+    );
+    const switched = renderToStringSync(() =>
+      messages.Scope({
+        locale: "en",
+        children: () => `${messages.locale()}:${messages.direction()}`,
+      }),
+    );
+    expect(hydrated).toBe("ar:rtl");
+    expect(switched).toBe("en:ltr");
+  });
+
+  it("should support complex plural categories through application-owned message functions", () => {
+    const plurals = createI18n("ar", {
+      ar: {
+        items: (count: number) => new Intl.PluralRules("ar").select(count),
+      },
+      pl: {
+        items: (count: number) => new Intl.PluralRules("pl").select(count),
+      },
+    });
+    expect([0, 1, 2, 3, 11, 100].map((count) => plurals.format("ar", "items", count))).toEqual([
+      "zero",
+      "one",
+      "two",
+      "few",
+      "many",
+      "other",
+    ]);
+    expect([1, 2, 5, 1.5].map((count) => plurals.format("pl", "items", count))).toEqual([
+      "one",
+      "few",
+      "many",
+      "other",
+    ]);
+  });
+
+  it("should preserve placeholder-shaped interpolation values and mixed-direction text", () => {
+    const literal = "Ada {name} {{total}}";
+    expect(messages.format("en", "greeting", { name: literal })).toBe(`Hello, ${literal}`);
+    expect(messages.format("ar", "greeting", { name: "Ada 123" })).toBe("مرحبا، Ada 123");
+  });
+
+  it("should reject absent, partial, and missing-key catalog access explicitly", () => {
+    expect(() => createI18n("en", {} as never)).toThrow("at least one catalog");
+    expect(() =>
+      createI18n("en", {
+        en: { first: () => "first", second: () => "second" },
+        fr: { first: () => "premier" } as never,
+      }),
+    ).toThrow("missing second");
+    const unsafeFormat = messages.format as unknown as (locale: string, key: string) => string;
+    expect(() => unsafeFormat("en", "missing")).toThrow("Missing i18n message: en.missing");
+  });
+
   it("should reject invalid catalogs for untyped callers and own frozen copies", () => {
     expect(() =>
       createI18n("en", {
