@@ -204,9 +204,14 @@ export function createI18n<
       throw new Error("The hydrated i18n catalog must match its locale.");
     }
 
+    const requestedDirection = hydrated
+      ? hydrated.dir
+      : props.dir === undefined
+        ? "ltr"
+        : props.dir;
     const value = Object.freeze({
       locale,
-      dir: assertDirection(hydrated?.dir ?? props.dir ?? "ltr"),
+      dir: assertDirection(requestedDirection),
       catalog: locale,
     });
 
@@ -243,8 +248,3 @@ export function createI18n<
     },
   });
 }
-/** Format a message in an explicitly selected locale. */
-/** Read the active locale. */
-/** Read the active locale's text direction. */
-/** Read the active catalog identifier. */
-/** Serialize the active locale state for hydration. */
