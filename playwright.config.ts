@@ -10,7 +10,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "vite --config vite.harness.config.ts",
+    command: "vp dev --config vite.harness.config.ts",
     url: "http://127.0.0.1:4310/tests/browser/harness.html",
     reuseExistingServer: false,
     timeout: 120_000,
