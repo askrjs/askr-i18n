@@ -89,3 +89,38 @@ tuples are required from every other locale; missing, extra, or incompatible
 messages fail during type checking and are also rejected at runtime.
 
 See [the runtime contract](docs/runtime.md) for isolation and hydration details.
+
+## Migrating to 0.5
+
+The root keeps `createI18n`, `resolveTextDirection`, `localeAttributes`,
+`applyLocaleAttributes`, `Catalog`, `CatalogMessage`, and `I18nHydration`.
+
+The service and helper types are inferred instead of separately exported:
+
+```ts
+const i18n = createI18n("en", catalogs);
+type Service = typeof i18n;
+type ScopeProps = Parameters<typeof i18n.Scope>[0];
+type Attributes = ReturnType<typeof i18n.attributes>;
+type AttributeTarget = Parameters<typeof applyLocaleAttributes>[0];
+type Direction = ReturnType<typeof resolveTextDirection>;
+```
+
+These replace `I18n`, `I18nScopeProps`, `LocaleAttributes`,
+`LocaleAttributeTarget`, and `TextDirection`. The implementation-only
+`CatalogKey`, `LocaleOf`, `MessageArgs`, `MessageAt`, `SameTuple`, `ValidCatalog`,
+and `ValidCatalogs` exports are removed; rely on factory inference.
+
+Use `satisfies Catalog` to validate an authored catalog while retaining its
+specific keys and argument tuples. `CatalogMessage<[Name]>` can annotate an
+individual message function, and `I18nHydration<Locales>` describes the stored
+SSR snapshot. Empty strings are valid messages. Missing messages do not fall
+back to an inherited property or another locale, and message functions must
+return strings.
+
+Catalog locale keys are application identifiers, preserved exactly. Direction
+resolution understands BCP-47 extensions and defaults unknown application keys
+to `ltr`; an explicit valid override wins. `Scope` owns lexical locale state.
+`applyLocaleAttributes` writes to an explicit target once; applications own its
+lifecycle, including restoring document attributes. Render `i18n.attributes()`
+as scoped element props when DOM cleanup should follow scope teardown.
