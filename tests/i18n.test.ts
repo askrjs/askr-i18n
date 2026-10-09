@@ -19,6 +19,9 @@ const messages = createI18n("en", {
   },
 });
 
+const untypedFormat = messages.format as unknown as (locale: string, key: string) => string;
+const untypedText = messages.text as unknown as (key: string) => string;
+
 describe("createI18n", () => {
   it("should resolve modern locale directions with explicit deterministic overrides", () => {
     expect(resolveTextDirection("en-US")).toBe("ltr");
@@ -276,5 +279,81 @@ describe("createI18n", () => {
     expect(owned.format("en", "label")).toBe("owned");
     expect(Object.isFrozen(owned.catalogs)).toBe(true);
     expect(Object.isFrozen(owned.catalogs.en)).toBe(true);
+  });
+  it.each([null, undefined, [], "catalogs", 42].map((catalogs) => ({ catalogs })))(
+    "should reject a malformed catalog map %j with a corrective error",
+    ({ catalogs }) => {
+      expect(() => createI18n("en", catalogs as never)).toThrow("requires a catalog map");
+    },
+  );
+
+  it.each([null, [], 42, "messages"].map((catalog) => ({ catalog })))(
+    "should identify a malformed source catalog %j",
+    ({ catalog }) => {
+      expect(() => createI18n("en", { en: catalog } as never)).toThrow("Invalid i18n catalog: en");
+    },
+  );
+
+  it.each(["toString", "constructor", "hasOwnProperty"])(
+    "should reject inherited missing keys on both formatting paths: %s",
+    (key) => {
+      expect(() => untypedFormat("en", key)).toThrow(`Missing i18n message: en.${key}`);
+      expect(() =>
+        renderToStringSync(() =>
+          messages.Scope({ locale: "en", children: () => untypedText(key) }),
+        ),
+      ).toThrow(`Missing i18n message: en.${key}`);
+    },
+  );
+
+  it.each([42, null, undefined, { message: "text" }])(
+    "should reject a non-string message result %j",
+    (value) => {
+      const invalid = createI18n("en", { en: { invalid: () => value as unknown as string } });
+      expect(() => invalid.format("en", "invalid")).toThrow(
+        "Invalid i18n message result: en.invalid",
+      );
+      expect(() =>
+        renderToStringSync(() =>
+          invalid.Scope({ locale: "en", children: () => invalid.text("invalid") }),
+        ),
+      ).toThrow("Invalid i18n message result: en.invalid");
+    },
+  );
+
+  it("should accept empty messages and own prototype-named messages without fallback", () => {
+    const explicit = createI18n("en", {
+      en: { empty: () => "", toString: (): string => "own message" },
+      ar: { empty: () => "", toString: (): string => "رسالة" },
+    });
+    expect(explicit.format("en", "empty")).toBe("");
+    expect(explicit.format("en", "toString")).toBe("own message");
+    expect(() =>
+      (explicit.format as unknown as (locale: string, key: string) => string)("EN", "empty"),
+    ).toThrow("Unknown i18n locale: EN");
+  });
+
+  it.each([
+    ["ar-u-nu-latn", "rtl"],
+    ["he-IL-u-ca-hebrew", "rtl"],
+    ["en-US-u-ca-islamic", "ltr"],
+    ["az-Arab-x-project", "rtl"],
+    ["pa-Guru-IN-u-nu-guru", "ltr"],
+  ] as const)("should resolve extension-bearing locale %s as %s", (locale, direction) => {
+    expect(resolveTextDirection(locale)).toBe(direction);
+    expect(localeAttributes(locale)).toEqual({ lang: locale, dir: direction });
+    expect(resolveTextDirection(locale, direction === "rtl" ? "ltr" : "rtl")).not.toBe(direction);
+  });
+
+  it("should restore scope after repeated renders and throw outside every completed scope", () => {
+    for (let index = 0; index < 20; index += 1) {
+      const locale = index % 2 ? "en" : "ar";
+      const rendered = renderToStringSync(() =>
+        messages.Scope({ locale, children: () => messages.locale() }),
+      );
+      expect(rendered).toBe(locale);
+      expect(() => messages.locale()).toThrow("readScope() can only be called");
+      expect(() => messages.text("total", 2)).toThrow("readScope() can only be called");
+    }
   });
 });
