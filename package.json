@@ -1,6 +1,6 @@
 {
   "name": "@askrjs/i18n",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Application-owned, typed internationalization scopes for Askr.",
   "keywords": [
     "askr",
@@ -57,7 +57,7 @@
     "test:installed": "npm run build && node tests/installed-smoke.js"
   },
   "devDependencies": {
-    "@askrjs/askr": ">=0.4.0 <0.5.0",
+    "@askrjs/askr": ">=0.5.0 <0.6.0",
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.3.0",
     "publint": "^0.3.24",
@@ -67,7 +67,7 @@
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.4.0 <0.5.0"
+    "@askrjs/askr": ">=0.5.0 <0.6.0"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@^0.3.1",

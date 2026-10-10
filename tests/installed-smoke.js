@@ -31,13 +31,13 @@ try {
     name: "askrjs-i18n-installed-smoke",
     private: true,
     type: "module",
-    dependencies: { "@askrjs/askr": "0.4.0" },
+    dependencies: { "@askrjs/askr": "0.5.0" },
   };
   writeFileSync(join(consumer, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
 
   execFileSync(
     process.execPath,
-    [npmCli, "install", "--ignore-scripts", "--package-lock=false", join(packed, filename)],
+    [npmCli, "install", "--package-lock=false", join(packed, filename)],
     { cwd: consumer, stdio: "pipe" },
   );
   execFileSync(process.execPath, [npmCli, "ls", "@askrjs/askr", "--all"], {
