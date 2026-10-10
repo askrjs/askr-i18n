@@ -20,3 +20,7 @@
   prototype-named messages remain valid.
 - Require formatted message results to be strings on both scoped and explicit
   locale paths, with the same corrective error.
+
+### Development
+
+- Refresh the locked development toolchain within its existing ranges: Vite+ 0.3.3 uses patched Tinypool 2.1.2, and source-map-js resolves to 1.2.2. Package runtime dependencies and public contracts are unchanged.
