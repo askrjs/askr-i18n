@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 /**
  * Minimal dev server config used only to serve tests/browser/harness.html
