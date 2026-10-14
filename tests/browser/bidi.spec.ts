@@ -129,4 +129,46 @@ test.describe("semantic locale boundaries", () => {
     expect(result.rtlLeft).toBe("7px");
     expect(result.ltrLeft).toBeGreaterThan(result.rtlBoundingLeft);
   });
+  test("should adopt SSR locale attributes and restore them across switching and repeated scope teardown", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    const initial = await page.evaluate(() => window.askrI18n.lifecycle.setup());
+    expect(initial.snapshot).toEqual({ version: 1, locale: "ar", dir: "rtl", catalog: "ar" });
+    expect(initial.adoptedElement).toBe(true);
+    expect(initial.attributes).toMatchObject({
+      lang: "ar",
+      dir: "rtl",
+      text: "مرحبا",
+      overrideLang: "en",
+      overrideDir: "rtl",
+    });
+    for (let count = 0; count < 6; count += 1) {
+      const locale: "ar" | "en" = count % 2 ? "ar" : "en";
+      const changed = await page.evaluate(
+        (locale) => window.askrI18n.lifecycle.change(locale),
+        locale,
+      );
+      expect(changed).toMatchObject({
+        lang: locale,
+        dir: locale === "ar" ? "rtl" : "ltr",
+        text: locale === "ar" ? "مرحبا" : "Hello",
+        overrideDir: "rtl",
+      });
+      const hidden = await page.evaluate(() => window.askrI18n.lifecycle.show(false));
+      expect(hidden).toMatchObject({
+        lang: null,
+        dir: null,
+        text: "outside",
+        overrideLang: null,
+        overrideDir: null,
+      });
+      const restored = await page.evaluate(() => window.askrI18n.lifecycle.show(true));
+      expect(restored).toMatchObject({ lang: locale, dir: locale === "ar" ? "rtl" : "ltr" });
+    }
+    await page.evaluate(() => window.askrI18n.lifecycle.teardown());
+    await expect(page.locator("#locale-boundary")).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+  });
 });

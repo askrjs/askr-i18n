@@ -1,0 +1,334 @@
+import { defineScope, readScope } from "@askrjs/askr";
+import type { JSXElement } from "@askrjs/askr/foundations/structures";
+
+/** Text direction used by a locale. */
+export type TextDirection = "ltr" | "rtl";
+/** Semantic HTML locale attributes for a document or nested language boundary. */
+export type LocaleAttributes<Locale extends string = string> = Readonly<{
+  lang: Locale;
+  dir: TextDirection;
+}>;
+/** Minimal target contract accepted by {@link applyLocaleAttributes}. */
+export type LocaleAttributeTarget = {
+  setAttribute(name: "lang" | "dir", value: string): void;
+};
+/** Typed message function in a locale catalog. */
+export type CatalogMessage<Args extends readonly unknown[] = never[]> = (...args: Args) => string;
+/** Read-only map of message keys to typed message functions. */
+export type Catalog = Readonly<Record<string, CatalogMessage>>;
+
+type LocaleOf<Catalogs extends Record<string, Catalog>> = keyof Catalogs & string;
+type CatalogKey<Catalogs extends Record<string, Catalog>> = {
+  [Locale in keyof Catalogs]: keyof Catalogs[Locale];
+}[keyof Catalogs] &
+  string;
+type MessageAt<Catalogs extends Record<string, Catalog>, Key extends PropertyKey> = {
+  [Locale in keyof Catalogs]: Key extends keyof Catalogs[Locale] ? Catalogs[Locale][Key] : never;
+}[keyof Catalogs];
+type MessageArgs<Message> = Message extends (...args: infer Args) => string ? Args : never;
+type SameTuple<Left extends readonly unknown[], Right extends readonly unknown[]> =
+  (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2
+    ? (<Value>() => Value extends Right ? 1 : 2) extends <Value>() => Value extends Left ? 1 : 2
+      ? true
+      : false
+    : false;
+type ValidCatalog<Source extends Catalog, Candidate extends Catalog> = Candidate & {
+  [Key in keyof Candidate]: Key extends keyof Source
+    ? SameTuple<MessageArgs<Candidate[Key]>, MessageArgs<Source[Key]>> extends true
+      ? Candidate[Key]
+      : never
+    : never;
+} & {
+  [Key in Exclude<keyof Source, keyof Candidate>]: never;
+};
+type ValidCatalogs<
+  Catalogs extends Record<string, Catalog>,
+  SourceLocale extends keyof Catalogs,
+> = {
+  [Locale in keyof Catalogs]: ValidCatalog<Catalogs[SourceLocale], Catalogs[Locale]>;
+};
+
+/** Serializable locale state for SSR hydration. */
+export type I18nHydration<Locale extends string = string> = Readonly<{
+  /** Snapshot schema version. */
+  version: 1;
+  /** Active locale. */
+  locale: Locale;
+  /** Text direction for the locale. */
+  dir: TextDirection;
+  /** Catalog selected for the locale. */
+  catalog: Locale;
+}>;
+
+/** Props for installing locale state through the Scope component. */
+export type I18nScopeProps<Locale extends string> =
+  | {
+      locale: Locale;
+      dir?: TextDirection;
+      hydration?: never;
+      children?: unknown;
+    }
+  | {
+      locale?: never;
+      dir?: never;
+      hydration: I18nHydration<Locale>;
+      children?: unknown;
+    };
+
+type ScopeState<Locale extends string> = {
+  locale: Locale;
+  dir: TextDirection;
+  catalog: Locale;
+};
+
+/** Typed internationalization service backed by aligned locale catalogs. */
+export interface I18n<Catalogs extends Record<string, Catalog>> {
+  /** Frozen catalogs supplied at creation time. */
+  readonly catalogs: Readonly<Catalogs>;
+  /** JSX scope component that installs the active locale. */
+  readonly Scope: (props: I18nScopeProps<LocaleOf<Catalogs>>) => JSXElement;
+  /** Format a message in the active locale. */
+  text<Key extends CatalogKey<Catalogs>>(
+    key: Key,
+    ...args: MessageArgs<MessageAt<Catalogs, Key>>
+  ): string;
+  /** Format a message in an explicitly selected locale. */
+  format<Locale extends LocaleOf<Catalogs>, Key extends keyof Catalogs[Locale] & string>(
+    locale: Locale,
+    key: Key,
+    ...args: MessageArgs<Catalogs[Locale][Key]>
+  ): string;
+  /** Read the active locale. */
+  locale(): LocaleOf<Catalogs>;
+  /** Read the active locale's text direction. */
+  direction(): TextDirection;
+  /** Read the active catalog identifier. */
+  catalog(): LocaleOf<Catalogs>;
+  /** Read semantic HTML attributes for the active locale boundary. */
+  attributes(): LocaleAttributes<LocaleOf<Catalogs>>;
+  /** Serialize the active locale state for hydration. */
+  dehydrate(): I18nHydration<LocaleOf<Catalogs>>;
+}
+
+const FALLBACK_RTL_LANGUAGES = new Set([
+  "ar",
+  "ckb",
+  "dv",
+  "fa",
+  "he",
+  "ks",
+  "lrc",
+  "mzn",
+  "nqo",
+  "ps",
+  "sd",
+  "ug",
+  "ur",
+  "yi",
+]);
+const FALLBACK_RTL_SCRIPTS = new Set([
+  "Adlm",
+  "Arab",
+  "Hebr",
+  "Mand",
+  "Nkoo",
+  "Rohg",
+  "Samr",
+  "Syrc",
+  "Thaa",
+]);
+
+function assertTextDirection(direction: unknown): TextDirection {
+  if (direction !== "ltr" && direction !== "rtl") {
+    throw new Error(`Invalid i18n text direction: ${String(direction)}.`);
+  }
+  return direction;
+}
+
+/** Resolve a locale's default text direction, allowing an explicit application override. */
+export function resolveTextDirection(locale: string, override?: TextDirection): TextDirection {
+  if (override !== undefined) return assertTextDirection(override);
+  try {
+    const resolved = new Intl.Locale(locale) as Intl.Locale & {
+      getTextInfo?: () => { direction: TextDirection };
+      textInfo?: { direction: TextDirection };
+    };
+    const direction = resolved.getTextInfo?.().direction ?? resolved.textInfo?.direction;
+    if (direction === "ltr" || direction === "rtl") return direction;
+    const likely = resolved.maximize();
+    const language = likely.language.toLowerCase();
+    return FALLBACK_RTL_SCRIPTS.has(likely.script ?? "") || FALLBACK_RTL_LANGUAGES.has(language)
+      ? "rtl"
+      : "ltr";
+  } catch {
+    return "ltr";
+  }
+}
+
+/** Build semantic HTML attributes for a document or nested locale boundary. */
+export function localeAttributes<const Locale extends string>(
+  locale: Locale,
+  direction?: TextDirection,
+): LocaleAttributes<Locale> {
+  return Object.freeze({ lang: locale, dir: resolveTextDirection(locale, direction) });
+}
+
+/** Apply locale attributes to an explicit DOM target such as `document.documentElement`. */
+export function applyLocaleAttributes(
+  target: LocaleAttributeTarget,
+  attributes: LocaleAttributes,
+): void {
+  const direction = assertTextDirection(attributes.dir);
+  target.setAttribute("lang", attributes.lang);
+  target.setAttribute("dir", direction);
+}
+
+/**
+ * Creates an application-owned internationalization service.
+ *
+ * Catalog values are ordinary typed TypeScript functions. Locale selection is
+ * intentionally left to the application and installed lexically through Scope.
+ * @param sourceLocale Locale whose message keys and argument tuples define the contract.
+ * @param catalogs Complete, argument-compatible catalogs for every locale.
+ * @returns A typed internationalization service.
+ */
+export function createI18n<
+  const SourceLocale extends string,
+  const Catalogs extends Record<SourceLocale, Catalog>,
+>(
+  sourceLocale: SourceLocale,
+  catalogs: Catalogs & ValidCatalogs<Catalogs, SourceLocale>,
+): I18n<Catalogs> {
+  if (!catalogs || typeof catalogs !== "object" || Array.isArray(catalogs)) {
+    throw new Error("createI18n requires a catalog map.");
+  }
+  const locales = Object.keys(catalogs) as LocaleOf<Catalogs>[];
+  if (locales.length === 0) {
+    throw new Error("createI18n requires at least one catalog.");
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(catalogs, sourceLocale)) {
+    throw new Error(`Unknown source locale: ${sourceLocale}.`);
+  }
+  const sourceCatalog = catalogs[sourceLocale];
+  if (!sourceCatalog || typeof sourceCatalog !== "object" || Array.isArray(sourceCatalog)) {
+    throw new Error(`Invalid i18n catalog: ${sourceLocale}.`);
+  }
+  const sourceKeys = Object.keys(sourceCatalog).sort();
+  const ownedEntries = locales.map((locale) => {
+    const catalog = catalogs[locale];
+    if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+      throw new Error(`Invalid i18n catalog: ${locale}.`);
+    }
+    const keys = Object.keys(catalog).sort();
+    const missing = sourceKeys.filter((key) => !Object.prototype.hasOwnProperty.call(catalog, key));
+    const extra = keys.filter((key) => !Object.prototype.hasOwnProperty.call(sourceCatalog, key));
+    if (missing.length || extra.length) {
+      throw new Error(
+        `Invalid i18n catalog ${locale}:` +
+          `${missing.length ? ` missing ${missing.join(", ")}` : ""}` +
+          `${extra.length ? ` extra ${extra.join(", ")}` : ""}.`,
+      );
+    }
+    for (const key of sourceKeys) {
+      const sourceMessage = sourceCatalog[key];
+      const message = catalog[key];
+      if (typeof message !== "function" || message.length !== sourceMessage.length) {
+        throw new Error(`Invalid i18n message signature: ${locale}.${key}.`);
+      }
+    }
+    return [locale, Object.freeze({ ...catalog })] as const;
+  });
+  const ownedCatalogs = Object.freeze(
+    Object.fromEntries(ownedEntries),
+  ) as unknown as Readonly<Catalogs>;
+  const scopeState = defineScope<ScopeState<LocaleOf<Catalogs>> | null>(null);
+
+  const assertLocale = (locale: string): LocaleOf<Catalogs> => {
+    if (!Object.prototype.hasOwnProperty.call(ownedCatalogs, locale)) {
+      throw new Error(`Unknown i18n locale: ${locale}.`);
+    }
+    return locale as LocaleOf<Catalogs>;
+  };
+
+  const active = (): ScopeState<LocaleOf<Catalogs>> => {
+    const value = readScope(scopeState);
+    if (!value) {
+      throw new Error("i18n.text() must be called within this service's <i18n.Scope>.");
+    }
+    return value;
+  };
+
+  const formatMessage = (locale: LocaleOf<Catalogs>, key: string, args: unknown[]): string => {
+    const catalog = ownedCatalogs[locale];
+    if (!Object.prototype.hasOwnProperty.call(catalog, key) || typeof catalog[key] !== "function") {
+      throw new Error(`Missing i18n message: ${locale}.${key}.`);
+    }
+    const result = (catalog[key] as unknown as (...values: unknown[]) => unknown)(...args);
+    if (typeof result !== "string") {
+      throw new Error(`Invalid i18n message result: ${locale}.${key}. Expected a string.`);
+    }
+    return result;
+  };
+
+  const format = <Locale extends LocaleOf<Catalogs>, Key extends keyof Catalogs[Locale] & string>(
+    locale: Locale,
+    key: Key,
+    ...args: MessageArgs<Catalogs[Locale][Key]>
+  ): string => formatMessage(assertLocale(locale), key, args);
+
+  const Scope = (props: I18nScopeProps<LocaleOf<Catalogs>>): JSXElement => {
+    const hydrated = props.hydration;
+    if (hydrated && hydrated.version !== 1) {
+      throw new Error(`Unsupported i18n hydration version: ${String(hydrated.version)}.`);
+    }
+
+    const requestedLocale = hydrated?.locale ?? props.locale;
+    if (requestedLocale === undefined) {
+      throw new Error("i18n.Scope requires a locale or hydration snapshot.");
+    }
+    const locale = assertLocale(requestedLocale);
+    if (hydrated && hydrated.catalog !== locale) {
+      throw new Error("The hydrated i18n catalog must match its locale.");
+    }
+
+    const requestedDirection = hydrated ? hydrated.dir : resolveTextDirection(locale, props.dir);
+    const value = Object.freeze({
+      locale,
+      dir: assertTextDirection(requestedDirection),
+      catalog: locale,
+    });
+
+    const children = props.children as Parameters<typeof scopeState>[0]["children"];
+    return scopeState({ value, children }) as JSXElement;
+  };
+
+  return Object.freeze({
+    catalogs: ownedCatalogs,
+    Scope,
+    text<Key extends CatalogKey<Catalogs>>(
+      key: Key,
+      ...args: MessageArgs<MessageAt<Catalogs, Key>>
+    ): string {
+      const selected = active();
+      return formatMessage(selected.locale, key, args);
+    },
+    format,
+    locale: () => active().locale,
+    direction: () => active().dir,
+    catalog: () => active().catalog,
+    attributes: () => {
+      const value = active();
+      return localeAttributes(value.locale, value.dir);
+    },
+    dehydrate: () => {
+      const value = active();
+      return Object.freeze({
+        version: 1 as const,
+        locale: value.locale,
+        dir: value.dir,
+        catalog: value.catalog,
+      });
+    },
+  });
+}
