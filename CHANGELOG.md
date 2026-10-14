@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-12
+
 ### Breaking changes
 
+- Require Core `>=0.5.0 <0.6.0`; upgrade `@askrjs/askr` together with i18n.
 - Retain the four runtime helpers and the authored `Catalog`, `CatalogMessage`
   and serialized `I18nHydration` contracts at the root. Move `I18n`,
   `I18nScopeProps`, `LocaleAttributes`, `LocaleAttributeTarget`, and `TextDirection`
@@ -23,4 +26,8 @@
 
 ### Development
 
+- Refresh the portable lock against the qualified Core 0.5.0 candidate.
 - Refresh the locked development toolchain within its existing ranges: Vite+ 0.3.3 uses patched Tinypool 2.1.2, and source-map-js resolves to 1.2.2. Package runtime dependencies and public contracts are unchanged.
+
+- First-party development workflows use Vite+; specialized compiler, runtime,
+  browser, and package checks remain part of validation.
