@@ -4,6 +4,7 @@ export default defineConfig({
     include: ["tests/*.test.ts"],
   },
   pack: {
+    deps: { resolveDepSubpath: true },
     entry: { index: "src/index.ts" },
     format: ["esm"],
     outDir: "dist",
