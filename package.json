@@ -47,7 +47,7 @@
     "lint": "vp lint src tests vite.config.ts vite.harness.config.ts playwright.config.ts && npm run typecheck",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "npm run test:unit && npm run test:browser",
-    "test:unit": "vitest run",
+    "test:unit": "vp test run",
     "test:browser": "playwright test",
     "test:publint": "publint",
     "pack:check": "npm pack --ignore-scripts --dry-run --json",
@@ -64,14 +64,14 @@
     "typescript": "^7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
     "vite-plus": "1.8.0",
-    "vitest": "5.1.2"
+    "vitest": "5.1.1"
   },
   "peerDependencies": {
     "@askrjs/askr": ">=0.5.0 <0.6.0"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
-    "vitest": "5.1.2"
+    "vitest": "5.1.1"
   },
   "engines": {
     "node": ">=24.0.0"
