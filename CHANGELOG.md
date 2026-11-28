@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.1 - 2026-11-28
+
+### Tests
+
+- Verify locale isolation and hydration in consumers using deferred SSR.
+
 ## 0.5.0 - 2026-10-12
 
 ### Breaking changes
